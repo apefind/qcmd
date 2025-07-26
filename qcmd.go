@@ -1,30 +1,19 @@
 package main
 
 import (
-	"filepath"
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
-// var style = lipgloss.NewStyle().
-// 	Bold(true).
-// 	Foreground(lipgloss.Color("#FAFAFA")).
-// 	Background(lipgloss.Color("#7D56F4")).
-// 	PaddingTop(2).
-// 	PaddingLeft(4).
-// 	Width(22)
-
-// func main1() {
-// 	fmt.Println(style.Render("Hello, kitty"))
-// }
 
 const listHeight = 25
 
@@ -38,17 +27,24 @@ var (
 )
 
 type item string
-
-func (i item) FilterValue() string { return "" }
-
 type itemDelegate struct{}
+
+func (i item) FilterValue() string {
+	return ""
+}
 
 func (d itemDelegate) Height() int {
 	return 1
-
 }
-func (d itemDelegate) Spacing() int                            { return 0 }
-func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d itemDelegate) Spacing() int {
+	return 0
+}
+
+func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
+	return nil
+}
+
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	i, ok := listItem.(item)
 	if !ok {
@@ -99,10 +95,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	if m.choice != "" {
-		return quitTextStyle.Render(fmt.Sprintf("%s? Sounds good to me.", m.choice))
+		return quitTextStyle.Render(m.choice)
 	}
 	if m.quitting {
-		return quitTextStyle.Render("Not hungry? That’s cool.")
+		return quitTextStyle.Render("")
 	}
 	return "\n" + m.list.View()
 }
@@ -116,17 +112,43 @@ func main() {
 	var qfile string
 	flag.StringVar(&qfile, "f", ".qcmd", ".qcmd filepath")
 	flag.Parse()
-	items := []list.Item{
-		item("Ramen"),
-		item("Tomato Soup"),
-		item("Hamburgers"),
-		item("Cheeseburgers"),
-		item("Currywurst"),
-		item("Okonomiyaki"),
-		item("Pasta"),
-		item("Fillet Mignon"),
-		item("Caviar"),
-		item("Just Wine"),
+
+	file, err := os.Open(qfile)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
+	var items []list.Item
+	for scanner.Scan() {
+		var cmd, label string
+		ln := scanner.Text()
+		if strings.HasPrefix(ln, "#") {
+			continue
+		}
+		s := strings.Split(ln, ":")
+		if len(s) == 1 {
+			cmd = strings.TrimSpace(s[0])
+			label = ""
+		} else if len(s) == 2 {
+			cmd = strings.TrimSpace(s[0])
+			label = strings.TrimSpace(s[1])
+		} else {
+			continue
+		}
+		if strings.HasPrefix(cmd, "#") {
+			continue
+		}
+		if label != "" {
+			items = append(items, item(label))
+		} else {
+			items = append(items, item(cmd))
+
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("%v", err)
 	}
 	const defaultWidth = 20
 	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)

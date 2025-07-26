@@ -1,6 +1,6 @@
 # qcmd example file
-Run qcmd: go run qcmd.go
-:clnup
+go run qcmd.go: Run qcmd
+clnup
 Go Tasks:
 	ls -lart
 	go mod update
