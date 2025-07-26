@@ -145,7 +145,7 @@ func main() {
 			continue
 		}
 		if label != "" {
-			items = append(items, item(fmt.Sprintf("%s: %s", label, cmd)))
+			items = append(items, item(label))
 		} else {
 			items = append(items, item(cmd))
 
