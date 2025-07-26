@@ -1,4 +1,5 @@
-# qcmd example file
+# .qcmd example file
+
 go run qcmd.go: Run qcmd
 clnup
 Go Tasks:

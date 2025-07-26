@@ -140,8 +140,11 @@ func main() {
 		if strings.HasPrefix(cmd, "#") {
 			continue
 		}
+		if cmd == "" && label == "" {
+			continue
+		}
 		if label != "" {
-			items = append(items, item(label))
+			items = append(items, item(fmt.Sprintf("%s: %s", label, cmd)))
 		} else {
 			items = append(items, item(cmd))
 
@@ -152,7 +155,7 @@ func main() {
 	}
 	const defaultWidth = 20
 	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "QCmd Menu"
+	l.Title = "Select"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = titleStyle
