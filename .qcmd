@@ -5,3 +5,8 @@ clnup
 Go Tasks:
 	ls -lart
 	go mod update
+Git:
+	git commit -a
+	git push
+	git pull
+qcmd test/.qcmd: Test submenu

@@ -124,8 +124,9 @@ func main() {
 	for scanner.Scan() {
 		var cmd, label string
 		ln := scanner.Text()
-		if strings.HasPrefix(ln, "#") {
-			continue
+		i := strings.Index(ln, "#")
+		if i >= 0 {
+			ln = ln[:i]
 		}
 		s := strings.Split(ln, ":")
 		if len(s) == 1 {
