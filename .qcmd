@@ -1,13 +1,13 @@
 # .qcmd example file
 
 Run qcmd: go run qcmd.go
-Clean up: clnup
+Clean up: clean_up
 clnup
 Go Tasks:
 	ls -lart
-	go mod update
+	go mod tidy
 Git:
-	git commit -a
+	git commit -a && git push
 	git push
 	git pull
 Test submenu: qcmd test/.qcmd
