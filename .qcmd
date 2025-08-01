@@ -9,4 +9,5 @@ Git:
 	git commit -a
 	git push
 	git pull
+	git deploy
 Edit .qcmd: $EDITOR .qcmd
