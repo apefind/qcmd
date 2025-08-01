@@ -1,6 +1,7 @@
 # .qcmd example file
 
 Go Tasks:
+	go run qcmd.go
 	go install qcmd
 	go mod tidy
 Git:

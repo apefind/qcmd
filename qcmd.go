@@ -12,21 +12,21 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/charmbracelet/bubbles/list"
+	itemlist "github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	gloss "github.com/charmbracelet/lipgloss"
 )
 
 const listHeight = 25
 const defaultWidth = 20
 
 var (
-	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+	titleStyle        = gloss.NewStyle().MarginLeft(2)
+	itemStyle         = gloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle = gloss.NewStyle().PaddingLeft(2).Foreground(gloss.Color("170"))
+	paginationStyle   = itemlist.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	helpStyle         = itemlist.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	quitTextStyle     = gloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
 type item struct {
@@ -38,7 +38,7 @@ type itemDelegate struct {
 }
 
 type model struct {
-	list     list.Model
+	list     itemlist.Model
 	choice   string
 	command  string
 	quitting bool
@@ -75,11 +75,11 @@ func (d itemDelegate) Spacing() int {
 	return 0
 }
 
-func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
+func (d itemDelegate) Update(_ tea.Msg, _ *itemlist.Model) tea.Cmd {
 	return nil
 }
 
-func (d itemDelegate) Render(w io.Writer, m list.Model, k int, l list.Item) {
+func (d itemDelegate) Render(w io.Writer, m itemlist.Model, k int, l itemlist.Item) {
 	item, ok := l.(item)
 	if !ok {
 		return
@@ -147,14 +147,16 @@ func main() {
 	flag.StringVar(&qfile, "f", ".qcmd", ".qcmd filepath")
 	flag.Parse()
 
+	// err = os.Chdir(newDir)
+
 	file, err := os.Open(qfile)
 	if err != nil {
-		log.Fatalf("%v", err)
+		log.Fatal(err)
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
-	var items []list.Item
+	var items []itemlist.Item
 	for scanner.Scan() {
 		var cmd, label string
 		ln := scanner.Text()
@@ -176,9 +178,9 @@ func main() {
 		items = append(items, item{label: label, cmd: cmd})
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("%v", err)
+		log.Fatal(err)
 	}
-	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
+	l := itemlist.New(items, itemDelegate{}, defaultWidth, listHeight)
 	l.Title = "Select Command"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
@@ -188,8 +190,12 @@ func main() {
 	prog := tea.NewProgram(model{list: l})
 	var m tea.Model
 	if m, err = prog.Run(); err != nil {
-		fmt.Println("error running program:", err)
+		log.Print(err)
 		os.Exit(1)
 	}
-	execCommand(m.(model).command)
+	if status, err := execCommand(m.(model).command); err != nil {
+		log.Print(err)
+		os.Exit(status)
+	}
+	os.Exit(0)
 }
