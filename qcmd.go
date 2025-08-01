@@ -44,26 +44,7 @@ type model struct {
 	quitting bool
 }
 
-func runCommand(args ...string) (int, error) {
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
-			if status.Exited() {
-				return status.ExitStatus(), err
-			}
-			if status.Signaled() {
-				return -int(status.Signal()), err
-			}
-		}
-		return -1, err
-	}
-	return 0, nil
-}
-
-func runCommand2(command string) (int, error) {
+func execCommand(command string) (int, error) {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -81,6 +62,7 @@ func runCommand2(command string) (int, error) {
 	}
 	return 0, nil
 }
+
 func (i item) FilterValue() string {
 	return ""
 }
@@ -209,6 +191,5 @@ func main() {
 		fmt.Println("error running program:", err)
 		os.Exit(1)
 	}
-	runCommand2(m.(model).command)
-	// runCommand(strings.Split(m.(model).command, " ")...)
+	execCommand(m.(model).command)
 }
