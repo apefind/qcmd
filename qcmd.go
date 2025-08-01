@@ -7,8 +7,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +18,7 @@ import (
 )
 
 const listHeight = 25
+const defaultWidth = 20
 
 var (
 	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
@@ -26,8 +29,39 @@ var (
 	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
-type item string
-type itemDelegate struct{}
+type item struct {
+	label string
+	cmd   string
+}
+
+type itemDelegate struct {
+}
+
+type model struct {
+	list     list.Model
+	choice   string
+	command  string
+	quitting bool
+}
+
+func runCommand(args ...string) (int, error) {
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				return status.ExitStatus(), err
+			}
+			if status.Signaled() {
+				return -int(status.Signal()), err
+			}
+		}
+		return -1, err
+	}
+	return 0, nil
+}
 
 func (i item) FilterValue() string {
 	return ""
@@ -45,25 +79,19 @@ func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
 	return nil
 }
 
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(item)
+func (d itemDelegate) Render(w io.Writer, m list.Model, k int, l list.Item) {
+	item, ok := l.(item)
 	if !ok {
 		return
 	}
-	str := fmt.Sprintf("%d. %s", index+1, i)
+	label := fmt.Sprintf("%d. %s", k+1, item.label)
 	fn := itemStyle.Render
-	if index == m.Index() {
+	if k == m.Index() {
 		fn = func(s ...string) string {
 			return selectedItemStyle.Render("> " + strings.Join(s, " "))
 		}
 	}
-	fmt.Fprint(w, fn(str))
-}
-
-type model struct {
-	list     list.Model
-	choice   string
-	quitting bool
+	fmt.Fprint(w, fn(label))
 }
 
 func (m model) Init() tea.Cmd {
@@ -83,8 +111,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			i, ok := m.list.SelectedItem().(item)
 			if ok {
-				m.choice = string(i)
+				m.choice = i.label
+				m.command = i.cmd
 			}
+			// fmt.Println("CHOICE:", m.choice)
+			// fmt.Println("CMD:", m.command)
+			// fmt.Print("PRESS ENTER")
+			// var name string
+			// fmt.Scanln(&name)
 			return m, tea.Quit
 		}
 	}
@@ -130,41 +164,38 @@ func main() {
 		}
 		s := strings.Split(ln, ":")
 		if len(s) == 1 {
+			label = strings.TrimSpace(s[0])
 			cmd = strings.TrimSpace(s[0])
-			label = ""
-		} else if len(s) == 2 {
-			cmd = strings.TrimSpace(s[0])
-			label = strings.TrimSpace(s[1])
 		} else {
+			label = strings.TrimSpace(s[0])
+			cmd = strings.TrimSpace(s[1])
+		}
+		if cmd == "" {
 			continue
 		}
-		if strings.HasPrefix(cmd, "#") {
-			continue
-		}
-		if cmd == "" && label == "" {
-			continue
-		}
-		if label != "" {
-			items = append(items, item(label))
-		} else {
-			items = append(items, item(cmd))
-
-		}
+		items = append(items, item{label: label, cmd: cmd})
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("%v", err)
 	}
-	const defaultWidth = 20
 	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Select"
+	l.Title = "Select Command"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
-	m := model{list: l}
-	if _, err := tea.NewProgram(m).Run(); err != nil {
-		fmt.Println("Error running program:", err)
+	prog := tea.NewProgram(model{list: l})
+	var m tea.Model
+	if m, err = prog.Run(); err != nil {
+		fmt.Println("error running program:", err)
 		os.Exit(1)
 	}
+	mod, ok := m.(model)
+	if !ok {
+		os.Exit(1)
+	}
+	runCommand(strings.Split(mod.command, " ")...)
+	// fmt.Println("CHOICE:", mod.choice)
+	// fmt.Println("COMMAND:", mod.command)
 }

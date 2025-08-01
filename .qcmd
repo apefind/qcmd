@@ -1,6 +1,7 @@
 # .qcmd example file
 
-go run qcmd.go: Run qcmd
+Run qcmd: go run qcmd.go
+Clean up: clnup
 clnup
 Go Tasks:
 	ls -lart
@@ -9,4 +10,4 @@ Git:
 	git commit -a
 	git push
 	git pull
-qcmd test/.qcmd: Test submenu
+Test submenu: qcmd test/.qcmd
