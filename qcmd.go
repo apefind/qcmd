@@ -114,11 +114,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.choice = i.label
 				m.command = i.cmd
 			}
-			// fmt.Println("CHOICE:", m.choice)
-			// fmt.Println("CMD:", m.command)
-			// fmt.Print("PRESS ENTER")
-			// var name string
-			// fmt.Scanln(&name)
 			return m, tea.Quit
 		}
 	}
@@ -143,20 +138,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %s -f [.qcmd]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
-	var qfile string
-	flag.StringVar(&qfile, "f", ".qcmd", ".qcmd filepath")
+	var qFile string
+	var qCmd int
+	flag.StringVar(&qFile, "f", ".qcmd", ".qcmd filepath")
+	flag.IntVar(&qCmd, "n", 0, "Executed the n-th command")
 	flag.Parse()
-
-	// err = os.Chdir(newDir)
-
-	file, err := os.Open(qfile)
+	file, err := os.Open(qFile)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	scanner := bufio.NewScanner(file)
-
+	if err := os.Chdir(filepath.Dir(qFile)); err != nil {
+		log.Fatal(err)
+	}
 	var items []itemlist.Item
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		var cmd, label string
 		ln := scanner.Text()
