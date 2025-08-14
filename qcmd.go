@@ -139,7 +139,7 @@ func main() {
 	var qFile string
 	var qCmd int
 	flag.StringVar(&qFile, "f", ".qcmd", ".qcmd filepath")
-	flag.IntVar(&qCmd, "n", 0, "Executed the n-th command")
+	flag.IntVar(&qCmd, "n", 0, "Execute the n-th command")
 	flag.Parse()
 	file, err := os.Open(qFile)
 	if err != nil {
