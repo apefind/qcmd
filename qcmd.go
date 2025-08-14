@@ -85,13 +85,11 @@ func (d itemDelegate) Render(w io.Writer, m itemlist.Model, k int, l itemlist.It
 		return
 	}
 	label := fmt.Sprintf("%d. %s", k+1, item.label)
-	fn := itemStyle.Render
 	if k == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("> " + strings.Join(s, " "))
-		}
+		fmt.Fprint(w, selectedItemStyle.Render("> "+label))
+	} else {
+		fmt.Fprint(w, itemStyle.Render(label))
 	}
-	fmt.Fprint(w, fn(label))
 }
 
 func (m model) Init() tea.Cmd {
