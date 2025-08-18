@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,15 +30,15 @@ var (
 	quitTextStyle     = gloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
-type item struct {
-	label string
-	cmd   string
+type cmdItem struct {
+	label   string
+	command string
 }
 
-type itemDelegate struct {
+type cmdItemDelegate struct {
 }
 
-type model struct {
+type cmdItemModel struct {
 	list     itemlist.Model
 	choice   string
 	command  string
@@ -63,24 +64,24 @@ func execCommand(command string) (int, error) {
 	return 0, nil
 }
 
-func (i item) FilterValue() string {
+func (i cmdItem) FilterValue() string {
 	return ""
 }
 
-func (d itemDelegate) Height() int {
+func (d cmdItemDelegate) Height() int {
 	return 1
 }
 
-func (d itemDelegate) Spacing() int {
+func (d cmdItemDelegate) Spacing() int {
 	return 0
 }
 
-func (d itemDelegate) Update(_ tea.Msg, _ *itemlist.Model) tea.Cmd {
+func (d cmdItemDelegate) Update(_ tea.Msg, _ *itemlist.Model) tea.Cmd {
 	return nil
 }
 
-func (d itemDelegate) Render(w io.Writer, m itemlist.Model, k int, l itemlist.Item) {
-	item, ok := l.(item)
+func (d cmdItemDelegate) Render(w io.Writer, m itemlist.Model, k int, l itemlist.Item) {
+	item, ok := l.(cmdItem)
 	if !ok {
 		return
 	}
@@ -92,11 +93,11 @@ func (d itemDelegate) Render(w io.Writer, m itemlist.Model, k int, l itemlist.It
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m cmdItemModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m cmdItemModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
@@ -107,10 +108,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "enter":
-			i, ok := m.list.SelectedItem().(item)
+			i, ok := m.list.SelectedItem().(cmdItem)
 			if ok {
 				m.choice = i.label
-				m.command = i.cmd
+				m.command = i.command
 			}
 			return m, tea.Quit
 		}
@@ -120,7 +121,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m cmdItemModel) View() string {
 	if m.choice != "" {
 		return quitTextStyle.Render(m.choice)
 	}
@@ -128,6 +129,34 @@ func (m model) View() string {
 		return quitTextStyle.Render("")
 	}
 	return "\n" + m.list.View()
+}
+
+func getNthComand(items []itemlist.Item, n int) (string, error) {
+	if n > len(items) {
+		return "", errors.New("sdf")
+	}
+	item, ok := items[n-1].(cmdItem)
+	if !ok {
+		return "", errors.New("sdf")
+	}
+	return item.command, nil
+}
+
+func selectComand(items []itemlist.Item) (string, error) {
+	cmdItemList := itemlist.New(items, cmdItemDelegate{}, defaultWidth, listHeight)
+	cmdItemList.Title = "Select Command"
+	cmdItemList.SetShowStatusBar(false)
+	cmdItemList.SetFilteringEnabled(false)
+	cmdItemList.Styles.Title = titleStyle
+	cmdItemList.Styles.PaginationStyle = paginationStyle
+	cmdItemList.Styles.HelpStyle = helpStyle
+	prog := tea.NewProgram(cmdItemModel{list: cmdItemList})
+	var m tea.Model
+	var err error
+	if m, err = prog.Run(); err != nil {
+		return "", err
+	}
+	return m.(cmdItemModel).command, nil
 }
 
 func main() {
@@ -169,25 +198,31 @@ func main() {
 		if cmd == "" {
 			continue
 		}
-		items = append(items, item{label: label, cmd: cmd})
+		items = append(items, cmdItem{label: label, command: cmd})
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
+		os.Exit(-1)
 	}
-	l := itemlist.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Select Command"
-	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false)
-	l.Styles.Title = titleStyle
-	l.Styles.PaginationStyle = paginationStyle
-	l.Styles.HelpStyle = helpStyle
-	prog := tea.NewProgram(model{list: l})
-	var m tea.Model
-	if m, err = prog.Run(); err != nil {
+	if qCmd > 0 {
+		command, err := getNthComand(items, qCmd)
+		if err != nil {
+			log.Print(err)
+			os.Exit(-1)
+		}
+		fmt.Printf("\n%s\n\n", command)
+		status, err := execCommand(command)
+		if err != nil {
+			log.Print(err)
+		}
+		os.Exit(status)
+	}
+	command, err := selectComand(items)
+	if err != nil {
 		log.Print(err)
 		os.Exit(1)
 	}
-	if status, err := execCommand(m.(model).command); err != nil {
+	if status, err := execCommand(command); err != nil {
 		log.Print(err)
 		os.Exit(status)
 	}
