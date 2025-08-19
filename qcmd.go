@@ -45,27 +45,12 @@ type cmdItemModel struct {
 	quitting bool
 }
 
-func execCommand(command string) (int, error) {
-	cmd := exec.Command("sh", "-c", command)
-	cmd.Stdout = os.Stdout
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
-			if status.Exited() {
-				return status.ExitStatus(), err
-			}
-			if status.Signaled() {
-				return -int(status.Signal()), err
-			}
-		}
-		return -1, err
-	}
-	return 0, nil
+func (item cmdItem) FilterValue() string {
+	return ""
 }
 
-func (i cmdItem) FilterValue() string {
-	return ""
+func (item cmdItem) Label(k int) string {
+	return fmt.Sprintf("%d. %s", k+1, item.label)
 }
 
 func (d cmdItemDelegate) Height() int {
@@ -80,16 +65,15 @@ func (d cmdItemDelegate) Update(_ tea.Msg, _ *itemlist.Model) tea.Cmd {
 	return nil
 }
 
-func (d cmdItemDelegate) Render(w io.Writer, m itemlist.Model, k int, l itemlist.Item) {
-	item, ok := l.(cmdItem)
+func (d cmdItemDelegate) Render(w io.Writer, m itemlist.Model, k int, itm itemlist.Item) {
+	item, ok := itm.(cmdItem)
 	if !ok {
 		return
 	}
-	label := fmt.Sprintf("%d. %s", k+1, item.label)
 	if k == m.Index() {
-		fmt.Fprint(w, selectedItemStyle.Render("> "+label))
+		fmt.Fprint(w, selectedItemStyle.Render("> "+item.Label(k)))
 	} else {
-		fmt.Fprint(w, itemStyle.Render(label))
+		fmt.Fprint(w, itemStyle.Render(item.Label(k)))
 	}
 }
 
@@ -131,6 +115,25 @@ func (m cmdItemModel) View() string {
 	return "\n" + m.list.View()
 }
 
+func execCommand(command string) (int, error) {
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				return status.ExitStatus(), err
+			}
+			if status.Signaled() {
+				return -int(status.Signal()), err
+			}
+		}
+		return -1, err
+	}
+	return 0, nil
+}
+
 func getNthComand(items []itemlist.Item, n int) (string, error) {
 	if n > len(items) {
 		return "", errors.New("sdf")
@@ -159,26 +162,13 @@ func selectComand(items []itemlist.Item) (string, error) {
 	return m.(cmdItemModel).command, nil
 }
 
-func main() {
-	log.SetFlags(0)
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s -f [.qcmd]\n", filepath.Base(os.Args[0]))
-		flag.PrintDefaults()
-	}
-	var qFile string
-	var qCmd int
-	flag.StringVar(&qFile, "f", ".qcmd", ".qcmd filepath")
-	flag.IntVar(&qCmd, "n", 0, "Execute the n-th command")
-	flag.Parse()
-	file, err := os.Open(qFile)
+func readCommandItems(fp string) ([]itemlist.Item, error) {
+	var items []itemlist.Item
+	file, err := os.Open(fp)
 	if err != nil {
-		log.Fatal(err)
+		return items, err
 	}
 	defer file.Close()
-	if err := os.Chdir(filepath.Dir(qFile)); err != nil {
-		log.Fatal(err)
-	}
-	var items []itemlist.Item
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		var cmd, label string
@@ -200,15 +190,50 @@ func main() {
 		}
 		items = append(items, cmdItem{label: label, command: cmd})
 	}
-	if err := scanner.Err(); err != nil {
+	return items, scanner.Err()
+}
+
+func printCommandItems(items []itemlist.Item) {
+	fmt.Println("")
+	for k, itm := range items {
+		item, ok := itm.(cmdItem)
+		if !ok {
+			continue
+		}
+		fmt.Printf("    %s\n", item.Label(k))
+	}
+	fmt.Println("")
+}
+
+func main() {
+	log.SetFlags(0)
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s -f [.qcmd]\n", filepath.Base(os.Args[0]))
+		flag.PrintDefaults()
+	}
+	var qCmdFile string
+	var qCmd int
+	var qListCommands bool
+	flag.StringVar(&qCmdFile, "f", ".qcmd", ".qcmd filepath")
+	flag.IntVar(&qCmd, "n", 0, "Execute the n-th command")
+	flag.BoolVar(&qListCommands, "l", false, "List commands")
+	flag.Parse()
+	items, err := readCommandItems(qCmdFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if qListCommands {
+		printCommandItems(items)
+		os.Exit(0)
+	}
+	if err := os.Chdir(filepath.Dir(qCmdFile)); err != nil {
 		log.Fatal(err)
 		os.Exit(-1)
 	}
 	if qCmd > 0 {
 		command, err := getNthComand(items, qCmd)
 		if err != nil {
-			log.Print(err)
-			os.Exit(-1)
+			log.Fatal(err)
 		}
 		fmt.Printf("\n%s\n\n", command)
 		status, err := execCommand(command)
@@ -219,8 +244,7 @@ func main() {
 	}
 	command, err := selectComand(items)
 	if err != nil {
-		log.Print(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 	if status, err := execCommand(command); err != nil {
 		log.Print(err)
