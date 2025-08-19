@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -115,11 +116,22 @@ func (m cmdItemModel) View() string {
 	return "\n" + m.list.View()
 }
 
-func execShellCommand(command string) (int, error) {
-	cmd := exec.Command("sh", "-c", command)
+func getShellCommand(command string) *exec.Cmd {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-command", command)
+
+	} else {
+		cmd = exec.Command("sh", "-c", command)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
+	return cmd
+}
+
+func execShellCommand(command string) (int, error) {
+	cmd := getShellCommand(command)
 	if err := cmd.Run(); err != nil {
 		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
 			if status.Exited() {
