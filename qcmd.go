@@ -115,7 +115,7 @@ func (m cmdItemModel) View() string {
 	return "\n" + m.list.View()
 }
 
-func execCommand(command string) (int, error) {
+func execShellCommand(command string) (int, error) {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -132,34 +132,6 @@ func execCommand(command string) (int, error) {
 		return -1, err
 	}
 	return 0, nil
-}
-
-func getNthComand(items []itemlist.Item, n int) (string, error) {
-	if n > len(items) {
-		return "", errors.New("sdf")
-	}
-	item, ok := items[n-1].(cmdItem)
-	if !ok {
-		return "", errors.New("sdf")
-	}
-	return item.command, nil
-}
-
-func selectComand(items []itemlist.Item) (string, error) {
-	cmdItemList := itemlist.New(items, cmdItemDelegate{}, defaultWidth, listHeight)
-	cmdItemList.Title = "Select Command"
-	cmdItemList.SetShowStatusBar(false)
-	cmdItemList.SetFilteringEnabled(false)
-	cmdItemList.Styles.Title = titleStyle
-	cmdItemList.Styles.PaginationStyle = paginationStyle
-	cmdItemList.Styles.HelpStyle = helpStyle
-	prog := tea.NewProgram(cmdItemModel{list: cmdItemList})
-	var m tea.Model
-	var err error
-	if m, err = prog.Run(); err != nil {
-		return "", err
-	}
-	return m.(cmdItemModel).command, nil
 }
 
 func readCommandItems(fp string) ([]itemlist.Item, error) {
@@ -205,50 +177,75 @@ func printCommandItems(items []itemlist.Item) {
 	fmt.Println("")
 }
 
+func getCommand(items []itemlist.Item, k int) (string, error) {
+
+	getNthComand := func(items []itemlist.Item, n int) (string, error) {
+		if n > len(items) {
+			return "", errors.New("item not found")
+		}
+		item, ok := items[n-1].(cmdItem)
+		if !ok {
+			return "", errors.New("not a cmdItem")
+		}
+		return item.command, nil
+	}
+
+	selectComand := func(items []itemlist.Item) (string, error) {
+		cmdItemList := itemlist.New(items, cmdItemDelegate{}, defaultWidth, listHeight)
+		cmdItemList.Title = "Select Command"
+		cmdItemList.SetShowStatusBar(false)
+		cmdItemList.SetFilteringEnabled(false)
+		cmdItemList.Styles.Title = titleStyle
+		cmdItemList.Styles.PaginationStyle = paginationStyle
+		cmdItemList.Styles.HelpStyle = helpStyle
+		prog := tea.NewProgram(cmdItemModel{list: cmdItemList})
+		var m tea.Model
+		var err error
+		if m, err = prog.Run(); err != nil {
+			return "", err
+		}
+		return m.(cmdItemModel).command, nil
+	}
+
+	if k > 0 {
+		command, err := getNthComand(items, k)
+		fmt.Printf("\n%s\n\n", command)
+		return command, err
+	}
+	return selectComand(items)
+}
+
 func main() {
 	log.SetFlags(0)
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s -f [.qcmd]\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "Usage: %s [-f .qcmd] [-n cmd] [-l]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
 	var qCmdFile string
-	var qCmd int
-	var qListCommands bool
+	var qNthCmd int
+	var qListCmds bool
 	flag.StringVar(&qCmdFile, "f", ".qcmd", ".qcmd filepath")
-	flag.IntVar(&qCmd, "n", 0, "Execute the n-th command")
-	flag.BoolVar(&qListCommands, "l", false, "List commands")
+	flag.IntVar(&qNthCmd, "n", 0, "Execute the n-th command")
+	flag.BoolVar(&qListCmds, "l", false, "List available commands")
 	flag.Parse()
 	items, err := readCommandItems(qCmdFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if qListCommands {
+	if qListCmds {
 		printCommandItems(items)
 		os.Exit(0)
 	}
 	if err := os.Chdir(filepath.Dir(qCmdFile)); err != nil {
 		log.Fatal(err)
-		os.Exit(-1)
 	}
-	if qCmd > 0 {
-		command, err := getNthComand(items, qCmd)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("\n%s\n\n", command)
-		status, err := execCommand(command)
-		if err != nil {
-			log.Print(err)
-		}
-		os.Exit(status)
-	}
-	command, err := selectComand(items)
+	command, err := getCommand(items, qNthCmd)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if status, err := execCommand(command); err != nil {
+	status, err := execShellCommand(command)
+	if err != nil {
 		log.Print(err)
-		os.Exit(status)
 	}
-	os.Exit(0)
+	os.Exit(status)
 }
