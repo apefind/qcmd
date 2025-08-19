@@ -236,16 +236,16 @@ func main() {
 		printCommandItems(items)
 		os.Exit(0)
 	}
-	if err := os.Chdir(filepath.Dir(qCmdFile)); err != nil {
-		log.Fatal(err)
-	}
 	command, err := getCommand(items, qNthCmd)
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := os.Chdir(filepath.Dir(qCmdFile)); err != nil {
+		log.Fatal(err)
+	}
 	status, err := execShellCommand(command)
 	if err != nil {
-		log.Print(err)
+		log.Fatal(err)
 	}
 	os.Exit(status)
 }
