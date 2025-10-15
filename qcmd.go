@@ -119,7 +119,7 @@ func (m cmdItemModel) View() string {
 func getShellCommand(command string) *exec.Cmd {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("powershell", "-command", command)
+		cmd = exec.Command("pwsh", "-command", command)
 
 	} else {
 		cmd = exec.Command("sh", "-c", command)
