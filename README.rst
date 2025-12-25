@@ -81,6 +81,24 @@ Example
    Print current directory: pwd ␍
    Edit .qcmd: $EDITOR .qcmd
 
+Menu
+----
+.. code-block:: sh
+
+    Main Menu
+    ┃ > ▸ Go Tasks
+    ┃   ▸ Git
+    ┃   ▶ ls -lart
+    ┃   ▶ uname -a
+    ┃   ▶ Print current directory
+    ┃   ▶ Edit .qcmd
+
+    Main Menu › Git
+    ┃ > ▶ git commit -a && git push
+    ┃   ▶ git commit -a
+    ┃   ▸ Git Subcmds
+
+
 Controls
 --------
 
