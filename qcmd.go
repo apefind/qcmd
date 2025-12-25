@@ -2,125 +2,65 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
-	itemlist "github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	gloss "github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/huh"
+	"gopkg.in/yaml.v3"
 )
 
-const listHeight = 25
-const defaultWidth = 20
-
-var (
-	titleStyle        = gloss.NewStyle().MarginLeft(2)
-	itemStyle         = gloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = gloss.NewStyle().PaddingLeft(2).Foreground(gloss.Color("170"))
-	paginationStyle   = itemlist.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	helpStyle         = itemlist.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle     = gloss.NewStyle().Margin(1, 0, 2, 4)
-)
-
-type cmdItem struct {
-	label   string
-	command string
+type CmdEntry struct {
+	Label   string      `yaml:"label"`
+	Command string      `yaml:"command,omitempty"`
+	Exit    bool        `yaml:"exit,omitempty"`
+	Entries []*CmdEntry `yaml:"entries,omitempty"`
 }
 
-type cmdItemDelegate struct {
-}
-
-type cmdItemModel struct {
-	list     itemlist.Model
-	choice   string
-	command  string
-	quitting bool
-}
-
-func (item cmdItem) FilterValue() string {
-	return ""
-}
-
-func (item cmdItem) Label(k int) string {
-	return fmt.Sprintf("%d. %s", k+1, item.label)
-}
-
-func (d cmdItemDelegate) Height() int {
-	return 1
-}
-
-func (d cmdItemDelegate) Spacing() int {
-	return 0
-}
-
-func (d cmdItemDelegate) Update(_ tea.Msg, _ *itemlist.Model) tea.Cmd {
-	return nil
-}
-
-func (d cmdItemDelegate) Render(w io.Writer, m itemlist.Model, k int, itm itemlist.Item) {
-	item, ok := itm.(cmdItem)
-	if !ok {
-		return
+func (e CmdEntry) String() string {
+	out, err := yaml.Marshal(e)
+	if err != nil {
+		panic(err)
 	}
-	if k == m.Index() {
-		fmt.Fprint(w, selectedItemStyle.Render("> "+item.Label(k)))
-	} else {
-		fmt.Fprint(w, itemStyle.Render(item.Label(k)))
+	return string(out)
+}
+
+func breadcrumb(path []*CmdEntry) string {
+	parts := make([]string, len(path))
+	for i, p := range path {
+		parts[i] = p.Label
 	}
+	return strings.Join(parts, " › ")
 }
 
-func (m cmdItemModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m cmdItemModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.list.SetWidth(msg.Width)
-		return m, nil
-	case tea.KeyMsg:
-		switch keypress := msg.String(); keypress {
-		case "q", "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
-		case "enter":
-			i, ok := m.list.SelectedItem().(cmdItem)
-			if ok {
-				m.choice = i.label
-				m.command = i.command
-			}
-			return m, tea.Quit
+func indentWidth(line string, tabSize int) int {
+	width := 0
+	for _, r := range line {
+		switch r {
+		case ' ':
+			width++
+		case '\t':
+			width += tabSize
+		default:
+			return width
 		}
 	}
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	return width
 }
 
-func (m cmdItemModel) View() string {
-	if m.choice != "" {
-		return quitTextStyle.Render(m.choice)
-	}
-	if m.quitting {
-		return quitTextStyle.Render("")
-	}
-	return "\n" + m.list.View()
-}
-
-func getShellCommand(command string) *exec.Cmd {
+func getShellCmd(command string) *exec.Cmd {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("pwsh", "-command", command)
-
+		if _, err := exec.LookPath("pwsh"); err == nil {
+			cmd = exec.Command("pwsh", "-Command", command)
+		} else {
+			cmd = exec.Command("powershell", "-Command", command)
+		}
 	} else {
 		cmd = exec.Command("sh", "-c", command)
 	}
@@ -130,8 +70,8 @@ func getShellCommand(command string) *exec.Cmd {
 	return cmd
 }
 
-func execShellCommand(command string) (int, error) {
-	cmd := getShellCommand(command)
+func runShellCmd(command string) (int, error) {
+	cmd := getShellCmd(command)
 	if err := cmd.Run(); err != nil {
 		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
 			if status.Exited() {
@@ -146,118 +86,152 @@ func execShellCommand(command string) (int, error) {
 	return 0, nil
 }
 
-func readCommandItems(fp string) ([]itemlist.Item, error) {
-	var items []itemlist.Item
-	file, err := os.Open(fp)
+func skip(ln string) bool {
+	ln = strings.TrimSpace(ln)
+	return ln == "" || strings.HasPrefix(ln, "#") && !strings.HasPrefix(ln, "#tab=")
+}
+
+func getCmdEntry(ln string) *CmdEntry {
+	ln = strings.TrimSpace(strings.Trim(ln, "␍"))
+	exit := true
+	if strings.HasSuffix(ln, "␍") { // optional suffix to return to menu
+		exit = false
+		ln = strings.TrimSpace(ln[:len(ln)-1])
+	}
+	if strings.HasSuffix(ln, ":") {
+		return &CmdEntry{Label: ln[:len(ln)-1], Exit: exit}
+	}
+	s := strings.SplitN(ln, ":", 2)
+	label := strings.TrimSpace(s[0])
+	if len(s) == 1 {
+		return &CmdEntry{Label: label, Command: label, Exit: exit}
+	}
+	return &CmdEntry{Label: label, Command: strings.TrimSpace(s[1]), Exit: exit}
+}
+
+// readQCmd reads the file and returns root CmdEntry and tab size
+func readQCmd(path string) (*CmdEntry, int, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return items, err
+		return nil, 0, err
 	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
+	defer f.Close()
+
+	tabSize := 4 // default
+	root := &CmdEntry{Label: "Main Menu"}
+	stack := []*CmdEntry{root}
+
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		var cmd, label string
 		ln := scanner.Text()
-		i := strings.Index(ln, "#")
-		if i >= 0 {
-			ln = ln[:i]
+		trim := strings.TrimSpace(ln)
+
+		// check for tab directive
+		if strings.HasPrefix(trim, "#tab=") || strings.HasPrefix(trim, "#indent=") {
+			parts := strings.SplitN(trim, "=", 2)
+			if len(parts) == 2 {
+				if val, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil && val > 0 {
+					tabSize = val
+				}
+			}
+			continue
 		}
-		s := strings.Split(ln, ":")
-		if len(s) == 1 {
-			label = strings.TrimSpace(s[0])
-			cmd = strings.TrimSpace(s[0])
+
+		if skip(ln) {
+			continue
+		}
+
+		indent := indentWidth(ln, tabSize) / tabSize
+		entry := getCmdEntry(strings.TrimSpace(ln))
+
+		if indent+1 > len(stack) {
+			stack = append(stack, stack[len(stack)-1])
 		} else {
-			label = strings.TrimSpace(s[0])
-			cmd = strings.TrimSpace(s[1])
+			stack = stack[:indent+1]
 		}
-		if cmd == "" {
-			continue
+		parent := stack[len(stack)-1]
+		parent.Entries = append(parent.Entries, entry)
+		if len(stack) == indent+1 {
+			stack = append(stack, entry)
+		} else {
+			stack[indent+1] = entry
 		}
-		items = append(items, cmdItem{label: label, command: cmd})
 	}
-	return items, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, 0, err
+	}
+	return root, tabSize, nil
 }
 
-func printCommandItems(items []itemlist.Item) {
-	fmt.Println("")
-	for k, itm := range items {
-		item, ok := itm.(cmdItem)
-		if !ok {
-			continue
+func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
+	opts := make([]huh.Option[*CmdEntry], 0, len(entries))
+	for _, e := range entries {
+		label := e.Label
+		if len(e.Entries) > 0 {
+			label = "▸ " + label
+		} else {
+			label = "▶ " + label
 		}
-		fmt.Printf("    %s\n", item.Label(k))
+		opts = append(opts, huh.NewOption(label, e))
 	}
-	fmt.Println("")
+	return opts
 }
 
-func getCommand(items []itemlist.Item, k int) (string, error) {
+func runMenu(menu *CmdEntry, path []*CmdEntry) error {
+	for {
+		var selected *CmdEntry
+		km := huh.NewDefaultKeyMap()
+		km.Quit.SetKeys("esc", "ctrl+c")
 
-	getNthComand := func(items []itemlist.Item, n int) (string, error) {
-		if n > len(items) {
-			return "", errors.New("item not found")
-		}
-		item, ok := items[n-1].(cmdItem)
-		if !ok {
-			return "", errors.New("not a cmdItem")
-		}
-		return item.command, nil
-	}
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[*CmdEntry]().
+					Title(breadcrumb(path)).
+					Options(entryOptions(menu.Entries)...).
+					Value(&selected),
+			),
+		).WithTheme(huh.ThemeCatppuccin()).
+			WithWidth(60).
+			WithKeyMap(km)
 
-	selectComand := func(items []itemlist.Item) (string, error) {
-		cmdItemList := itemlist.New(items, cmdItemDelegate{}, defaultWidth, listHeight)
-		cmdItemList.Title = "Select Command"
-		cmdItemList.SetShowStatusBar(false)
-		cmdItemList.SetFilteringEnabled(false)
-		cmdItemList.Styles.Title = titleStyle
-		cmdItemList.Styles.PaginationStyle = paginationStyle
-		cmdItemList.Styles.HelpStyle = helpStyle
-		prog := tea.NewProgram(cmdItemModel{list: cmdItemList})
-		var m tea.Model
-		var err error
-		if m, err = prog.Run(); err != nil {
-			return "", err
+		err := form.Run()
+		if err == huh.ErrUserAborted {
+			return nil
 		}
-		return m.(cmdItemModel).command, nil
-	}
+		if err != nil {
+			return err
+		}
 
-	if k > 0 {
-		command, err := getNthComand(items, k)
-		fmt.Printf("\n%s\n\n", command)
-		return command, err
+		if len(selected.Entries) > 0 {
+			if exitErr := runMenu(selected, append(path, selected)); exitErr != nil {
+				return exitErr
+			}
+			continue
+		}
+
+		code, err := runShellCmd(selected.Command)
+		if err != nil {
+			fmt.Printf("command failed (%d): %v\n", code, err)
+		}
+
+		if selected.Exit {
+			return nil // normal exit, don't panic
+		}
 	}
-	return selectComand(items)
 }
 
 func main() {
-	log.SetFlags(0)
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [-f .qcmd] [-n cmd] [-l]\n", filepath.Base(os.Args[0]))
-		flag.PrintDefaults()
-	}
-	var qCmdFile string
-	var qNthCmd int
-	var qListCmds bool
-	flag.StringVar(&qCmdFile, "f", ".qcmd", ".qcmd filepath")
-	flag.IntVar(&qNthCmd, "n", 0, "Execute the n-th command")
-	flag.BoolVar(&qListCmds, "l", false, "List available commands")
+	qcmdPath := flag.String("file", ".qcmd", "path to the QCMD file")
 	flag.Parse()
-	items, err := readCommandItems(qCmdFile)
+	if _, err := os.Stat(*qcmdPath); err != nil {
+		fmt.Printf("Error: cannot open file %s: %v\n", *qcmdPath, err)
+		os.Exit(1)
+	}
+	menu, _, err := readQCmd(*qcmdPath)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
-	if qListCmds {
-		printCommandItems(items)
-		os.Exit(0)
+	if err := runMenu(menu, []*CmdEntry{menu}); err != nil {
+		panic(err)
 	}
-	command, err := getCommand(items, qNthCmd)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := os.Chdir(filepath.Dir(qCmdFile)); err != nil {
-		log.Fatal(err)
-	}
-	status, err := execShellCommand(command)
-	if err != nil {
-		log.Fatal(err)
-	}
-	os.Exit(status)
 }
