@@ -118,7 +118,7 @@ func readQCmd(path string) (*CmdEntry, int, error) {
 	defer f.Close()
 
 	tabSize := 4 // default
-	root := &CmdEntry{Label: "Main Menu"}
+	root := &CmdEntry{Label: "QCmd Menu"}
 	stack := []*CmdEntry{root}
 
 	scanner := bufio.NewScanner(f)
@@ -221,7 +221,7 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 }
 
 func main() {
-	qcmdPath := flag.String("file", ".qcmd", "path to the QCMD file")
+	qcmdPath := flag.String("f", ".qcmd", "path to the QCMD file")
 	flag.Parse()
 	if _, err := os.Stat(*qcmdPath); err != nil {
 		fmt.Printf("Error: cannot open file %s: %v\n", *qcmdPath, err)

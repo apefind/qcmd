@@ -2,12 +2,16 @@
 
 Go Tasks:
 	go run qcmd.go
-	go install qcmd
+	go install qcmd.go
 	go mod tidy
 Git:
 	git commit -a && git push
 	git commit -a
-	git push
-	git pull
-	git deploy
+    Git Subcmds:
+    	git push
+    	git pull
+    	git deploy
+ls -lart
+uname -a
+Print current directory: pwd ␍
 Edit .qcmd: $EDITOR .qcmd
