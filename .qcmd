@@ -1,6 +1,8 @@
 # .qcmd example file
 
 git commit -a && git push && git deploy
+go install qcmd.go
+
 Go Tasks:
     go run qcmd.go
     go install qcmd.go
