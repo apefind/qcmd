@@ -92,21 +92,30 @@ func skip(ln string) bool {
 }
 
 func getCmdEntry(ln string) *CmdEntry {
-	ln = strings.TrimSpace(strings.Trim(ln, "␍"))
+	ln = strings.TrimSpace(ln)
+
 	exit := true
 	if strings.HasSuffix(ln, "␍") { // optional suffix to return to menu
 		exit = false
-		ln = strings.TrimSpace(ln[:len(ln)-1])
+		ln = strings.TrimSpace(strings.TrimSuffix(ln, "␍"))
 	}
+
 	if strings.HasSuffix(ln, ":") {
 		return &CmdEntry{Label: ln[:len(ln)-1], Exit: exit}
 	}
+
 	s := strings.SplitN(ln, ":", 2)
 	label := strings.TrimSpace(s[0])
+
 	if len(s) == 1 {
 		return &CmdEntry{Label: label, Command: label, Exit: exit}
 	}
-	return &CmdEntry{Label: label, Command: strings.TrimSpace(s[1]), Exit: exit}
+
+	return &CmdEntry{
+		Label:   label,
+		Command: strings.TrimSpace(s[1]),
+		Exit:    exit,
+	}
 }
 
 // readQCmd reads the file and returns root CmdEntry and tab size
