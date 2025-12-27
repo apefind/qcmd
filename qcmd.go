@@ -199,9 +199,7 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 					Options(entryOptions(menu.Entries)...).
 					Value(&selected),
 			),
-		).WithTheme(huh.ThemeCatppuccin()).
-			WithWidth(60).
-			WithKeyMap(km)
+		).WithTheme(huh.ThemeCatppuccin()).WithKeyMap(km)
 
 		err := form.Run()
 		if err == huh.ErrUserAborted {
