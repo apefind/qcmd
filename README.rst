@@ -1,7 +1,6 @@
 
 QCmd
 ====
-
 QCmd is a lightweight Go-based terminal menu that lets you run shell commands
 from a hierarchical, text-defined menu.
 
@@ -10,7 +9,6 @@ It’s designed to be fast, simple, and easy to customize using a single
 
 Features
 --------
-
 - Interactive terminal UI
 - Simple indentation-based menu structure
 - Nested submenus
@@ -20,7 +18,6 @@ Features
 
 Installation
 ------------
-
 Run directly:
 
 .. code-block:: sh
@@ -35,7 +32,6 @@ Install as a binary:
 
 Usage
 -----
-
 By default, QCmd reads a file named ``.qcmd`` in the current directory:
 
 .. code-block:: sh
@@ -50,7 +46,6 @@ Specify a custom file:
 
 .qcmd File Format
 -----------------
-
 - Indentation defines menu hierarchy
 - Lines ending with ``:`` define submenus
 - ``label: command`` executes a shell command
@@ -62,7 +57,6 @@ Specify a custom file:
 
 Example
 -------
-
 .. code-block:: text
 
    Go Tasks:
@@ -101,7 +95,11 @@ Menu
 
 Controls
 --------
-
 - Arrow keys / typing to select
 - Enter to execute
 - Esc or Ctrl+C to quit
+
+
+License
+-------
+MIT License.
