@@ -7,6 +7,7 @@ Go Tasks:
     go run qcmd.go
     go install qcmd.go
     go get -u
+    go get -u ./...
     go mod tidy
 Git:
     git commit -a && git push

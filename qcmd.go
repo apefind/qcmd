@@ -127,45 +127,36 @@ func readQCmd(path string) (*CmdEntry, int, error) {
 	}
 	defer f.Close()
 
-	tabSize := 4 // default
+	tabSize := 4
 	root := &CmdEntry{Label: "QCmd Menu"}
+
 	stack := []*CmdEntry{root}
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		ln := scanner.Text()
-		trim := strings.TrimSpace(ln)
+		raw := scanner.Text()
+		trim := strings.TrimSpace(raw)
 
-		// check for tab directive
+		// tab directive
 		if strings.HasPrefix(trim, "#tab=") || strings.HasPrefix(trim, "#indent=") {
-			parts := strings.SplitN(trim, "=", 2)
-			if len(parts) == 2 {
-				if val, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil && val > 0 {
-					tabSize = val
-				}
+			if v, err := strconv.Atoi(strings.Split(trim, "=")[1]); err == nil && v > 0 {
+				tabSize = v
 			}
 			continue
 		}
-
-		if skip(ln) {
+		if skip(raw) {
 			continue
 		}
-
-		indent := indentWidth(ln, tabSize) / tabSize
-		entry := getCmdEntry(strings.TrimSpace(ln))
-
-		if indent+1 > len(stack) {
-			stack = append(stack, stack[len(stack)-1])
-		} else {
-			stack = stack[:indent+1]
+		level := indentWidth(raw, tabSize) / tabSize
+		entry := getCmdEntry(trim)
+		// ensure stack depth
+		if level >= len(stack) {
+			level = len(stack) - 1
 		}
+		stack = stack[:level+1]
 		parent := stack[len(stack)-1]
 		parent.Entries = append(parent.Entries, entry)
-		if len(stack) == indent+1 {
-			stack = append(stack, entry)
-		} else {
-			stack[indent+1] = entry
-		}
+		stack = append(stack, entry)
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, 0, err
