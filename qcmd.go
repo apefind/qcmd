@@ -24,9 +24,13 @@ type CmdEntry struct {
 }
 
 var (
-	cmdStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
-	menuStyle  = lipgloss.NewStyle().Bold(true)
-	sepStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	// Commands: bright green + bold
+	cmdStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Bold(true)
+	// Submenus: bold only
+	menuStyle = lipgloss.NewStyle().Bold(true)
+	// Separators: soft gray
+	sepStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	// Breadcrumb: subtle gray
 	breadStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
 
