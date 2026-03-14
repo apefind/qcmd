@@ -51,6 +51,7 @@ func skip(ln string) bool {
 }
 
 func getCmdEntry(ln string) *CmdEntry {
+
 	ln = strings.TrimSpace(ln)
 
 	if ln == "---" {
@@ -136,11 +137,13 @@ func getShellCmd(command string) *exec.Cmd {
 	var cmd *exec.Cmd
 
 	if runtime.GOOS == "windows" {
+
 		if _, err := exec.LookPath("pwsh"); err == nil {
 			cmd = exec.Command("pwsh", "-Command", command)
 		} else {
 			cmd = exec.Command("powershell", "-Command", command)
 		}
+
 	} else {
 		cmd = exec.Command("sh", "-c", command)
 	}
@@ -163,7 +166,6 @@ func runShellCmd(command string) (int, error) {
 			if status.Exited() {
 				return status.ExitStatus(), err
 			}
-
 			if status.Signaled() {
 				return -int(status.Signal()), err
 			}
@@ -205,9 +207,9 @@ func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
 		label := e.Label
 
 		if len(e.Entries) > 0 {
-			label = "▸ " + label
+			label = "› " + label
 		} else {
-			label = "◇ " + label
+			label = "→ " + label
 		}
 
 		opts = append(opts, huh.NewOption(label, e))
@@ -224,7 +226,7 @@ func runPalette(root *CmdEntry) error {
 	opts := make([]huh.Option[*CmdEntry], 0, len(cmds))
 
 	for _, c := range cmds {
-		opts = append(opts, huh.NewOption("◇ "+c.Label, c))
+		opts = append(opts, huh.NewOption("→ "+c.Label, c))
 	}
 
 	var selected *CmdEntry
@@ -237,7 +239,7 @@ func runPalette(root *CmdEntry) error {
 				Options(opts...).
 				Value(&selected),
 		),
-	)
+	).WithKeyMap(huh.NewDefaultKeyMap())
 
 	err := form.Run()
 	if err != nil {
@@ -262,14 +264,15 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 					Options(entryOptions(menu.Entries)...).
 					Value(&selected),
 			),
-		).WithTheme(huh.ThemeCatppuccin())
+		).
+			WithKeyMap(huh.NewDefaultKeyMap()).
+			WithTheme(huh.ThemeCatppuccin())
 
 		err := form.Run()
 
 		if err == huh.ErrUserAborted {
 			return nil
 		}
-
 		if err != nil {
 			return err
 		}
