@@ -95,7 +95,7 @@ func getCmdEntry(ln string) *CmdEntry {
 	ln = strings.TrimSpace(ln)
 
 	exit := true
-	if strings.HasSuffix(ln, "␍") { // optional suffix to return to menu
+	if strings.HasSuffix(ln, "␍") {
 		exit = false
 		ln = strings.TrimSpace(strings.TrimSuffix(ln, "␍"))
 	}
@@ -104,7 +104,8 @@ func getCmdEntry(ln string) *CmdEntry {
 		return &CmdEntry{Label: ln[:len(ln)-1], Exit: exit}
 	}
 
-	s := strings.SplitN(ln, ":", 2)
+	// only treat ": " as label separator
+	s := strings.SplitN(ln, ": ", 2)
 	label := strings.TrimSpace(s[0])
 
 	if len(s) == 1 {
