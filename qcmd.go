@@ -12,22 +12,14 @@ import (
 	"syscall"
 
 	"github.com/charmbracelet/huh"
-	"gopkg.in/yaml.v3"
 )
 
 type CmdEntry struct {
-	Label   string      `yaml:"label"`
-	Command string      `yaml:"command,omitempty"`
-	Exit    bool        `yaml:"exit,omitempty"`
-	Entries []*CmdEntry `yaml:"entries,omitempty"`
-}
-
-func (e CmdEntry) String() string {
-	out, err := yaml.Marshal(e)
-	if err != nil {
-		panic(err)
-	}
-	return string(out)
+	Label     string
+	Command   string
+	Exit      bool
+	Separator bool
+	Entries   []*CmdEntry
 }
 
 func breadcrumb(path []*CmdEntry) string {
@@ -53,39 +45,6 @@ func indentWidth(line string, tabSize int) int {
 	return width
 }
 
-func getShellCmd(command string) *exec.Cmd {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		if _, err := exec.LookPath("pwsh"); err == nil {
-			cmd = exec.Command("pwsh", "-Command", command)
-		} else {
-			cmd = exec.Command("powershell", "-Command", command)
-		}
-	} else {
-		cmd = exec.Command("sh", "-c", command)
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	return cmd
-}
-
-func runShellCmd(command string) (int, error) {
-	cmd := getShellCmd(command)
-	if err := cmd.Run(); err != nil {
-		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
-			if status.Exited() {
-				return status.ExitStatus(), err
-			}
-			if status.Signaled() {
-				return -int(status.Signal()), err
-			}
-		}
-		return -1, err
-	}
-	return 0, nil
-}
-
 func skip(ln string) bool {
 	ln = strings.TrimSpace(ln)
 	return ln == "" || strings.HasPrefix(ln, "#") && !strings.HasPrefix(ln, "#tab=")
@@ -93,6 +52,10 @@ func skip(ln string) bool {
 
 func getCmdEntry(ln string) *CmdEntry {
 	ln = strings.TrimSpace(ln)
+
+	if ln == "---" {
+		return &CmdEntry{Separator: true}
+	}
 
 	exit := true
 	if strings.HasSuffix(ln, "␍") {
@@ -104,7 +67,6 @@ func getCmdEntry(ln string) *CmdEntry {
 		return &CmdEntry{Label: ln[:len(ln)-1], Exit: exit}
 	}
 
-	// only treat ": " as label separator
 	s := strings.SplitN(ln, ": ", 2)
 	label := strings.TrimSpace(s[0])
 
@@ -112,14 +74,9 @@ func getCmdEntry(ln string) *CmdEntry {
 		return &CmdEntry{Label: label, Command: label, Exit: exit}
 	}
 
-	return &CmdEntry{
-		Label:   label,
-		Command: strings.TrimSpace(s[1]),
-		Exit:    exit,
-	}
+	return &CmdEntry{Label: label, Command: strings.TrimSpace(s[1]), Exit: exit}
 }
 
-// readQCmd reads the file and returns root CmdEntry and tab size
 func readQCmd(path string) (*CmdEntry, int, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -129,58 +86,111 @@ func readQCmd(path string) (*CmdEntry, int, error) {
 
 	tabSize := 4
 	root := &CmdEntry{Label: "QCmd Menu"}
-
 	stack := []*CmdEntry{root}
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		raw := scanner.Text()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		raw := sc.Text()
 		trim := strings.TrimSpace(raw)
 
-		// tab directive
 		if strings.HasPrefix(trim, "#tab=") || strings.HasPrefix(trim, "#indent=") {
 			if v, err := strconv.Atoi(strings.Split(trim, "=")[1]); err == nil && v > 0 {
 				tabSize = v
 			}
 			continue
 		}
+
 		if skip(raw) {
 			continue
 		}
+
 		level := indentWidth(raw, tabSize) / tabSize
 		entry := getCmdEntry(trim)
-		// ensure stack depth
+
 		if level >= len(stack) {
 			level = len(stack) - 1
 		}
 		stack = stack[:level+1]
+
 		parent := stack[len(stack)-1]
 		parent.Entries = append(parent.Entries, entry)
-		stack = append(stack, entry)
+
+		if !entry.Separator {
+			stack = append(stack, entry)
+		}
 	}
-	if err := scanner.Err(); err != nil {
+
+	if err := sc.Err(); err != nil {
 		return nil, 0, err
 	}
 	return root, tabSize, nil
 }
 
+func getShellCmd(command string) *exec.Cmd {
+	var cmd *exec.Cmd
+
+	if runtime.GOOS == "windows" {
+		if _, err := exec.LookPath("pwsh"); err == nil {
+			cmd = exec.Command("pwsh", "-Command", command)
+		} else {
+			cmd = exec.Command("powershell", "-Command", command)
+		}
+	} else {
+		cmd = exec.Command("sh", "-c", command)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd
+}
+
+func runShellCmd(command string) (int, error) {
+	cmd := getShellCmd(command)
+
+	if err := cmd.Run(); err != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				return status.ExitStatus(), err
+			}
+			if status.Signaled() {
+				return -int(status.Signal()), err
+			}
+		}
+		return -1, err
+	}
+
+	return 0, nil
+}
+
 func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
 	opts := make([]huh.Option[*CmdEntry], 0, len(entries))
+
 	for _, e := range entries {
-		label := e.Label
-		if len(e.Entries) > 0 {
-			label = "▸ " + label
-		} else {
-			label = "▶ " + label
+
+		if e.Separator {
+			opts = append(opts, huh.NewOption("────────", e))
+			continue
 		}
+
+		label := e.Label
+
+		if len(e.Entries) > 0 {
+			label = "› " + label
+		} else {
+			label = "● " + label
+		}
+
 		opts = append(opts, huh.NewOption(label, e))
 	}
+
 	return opts
 }
 
 func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 	for {
 		var selected *CmdEntry
+
 		km := huh.NewDefaultKeyMap()
 		km.Quit.SetKeys("esc", "ctrl+c")
 
@@ -201,9 +211,13 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 			return err
 		}
 
+		if selected.Separator {
+			continue
+		}
+
 		if len(selected.Entries) > 0 {
-			if exitErr := runMenu(selected, append(path, selected)); exitErr != nil {
-				return exitErr
+			if err := runMenu(selected, append(path, selected)); err != nil {
+				return err
 			}
 			continue
 		}
@@ -214,22 +228,25 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 		}
 
 		if selected.Exit {
-			return nil // normal exit, don't panic
+			return nil
 		}
 	}
 }
 
 func main() {
-	qcmdPath := flag.String("f", ".qcmd", "path to the QCMD file")
+	qcmdPath := flag.String("f", ".qcmd", "path to QCMD file")
 	flag.Parse()
+
 	if _, err := os.Stat(*qcmdPath); err != nil {
 		fmt.Printf("Error: cannot open file %s: %v\n", *qcmdPath, err)
 		os.Exit(1)
 	}
+
 	menu, _, err := readQCmd(*qcmdPath)
 	if err != nil {
 		panic(err)
 	}
+
 	if err := runMenu(menu, []*CmdEntry{menu}); err != nil {
 		panic(err)
 	}

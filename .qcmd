@@ -9,6 +9,7 @@ Go Tasks:
     go get -u
     go get -u ./...
     go mod tidy
+
 Git:
     git commit -a && git push
     git commit -a
@@ -16,7 +17,11 @@ Git:
         git push ␍
         git pull  ␍
         git deploy ␍
+
+---
+Edit .qcmd: $EDITOR .qcmd
+---
+
 ls -lart
 uname -a
 Print current directory: pwd ␍
-Edit .qcmd: $EDITOR .qcmd
