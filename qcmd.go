@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type CmdEntry struct {
@@ -22,12 +23,19 @@ type CmdEntry struct {
 	Entries   []*CmdEntry
 }
 
+var (
+	cmdStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	menuStyle  = lipgloss.NewStyle().Bold(true)
+	sepStyle   = lipgloss.NewStyle().Faint(true)
+	breadStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+)
+
 func breadcrumb(path []*CmdEntry) string {
 	p := make([]string, len(path))
 	for i, e := range path {
 		p[i] = e.Label
 	}
-	return strings.Join(p, " › ")
+	return breadStyle.Render(strings.Join(p, " › "))
 }
 
 func indentWidth(line string, tabSize int) int {
@@ -200,16 +208,16 @@ func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
 	for _, e := range entries {
 
 		if e.Separator {
-			opts = append(opts, huh.NewOption("────────", e))
+			opts = append(opts, huh.NewOption(sepStyle.Render("────────"), e))
 			continue
 		}
 
 		label := e.Label
 
 		if len(e.Entries) > 0 {
-			label = "› " + label
+			label = menuStyle.Render("› " + label)
 		} else {
-			label = "→ " + label
+			label = cmdStyle.Render("→ " + label)
 		}
 
 		opts = append(opts, huh.NewOption(label, e))
@@ -232,7 +240,7 @@ func runPalette(root *CmdEntry) error {
 	opts := make([]huh.Option[*CmdEntry], 0, len(cmds))
 
 	for _, c := range cmds {
-		opts = append(opts, huh.NewOption("→ "+c.Label, c))
+		opts = append(opts, huh.NewOption(cmdStyle.Render("→ "+c.Label), c))
 	}
 
 	var selected *CmdEntry
