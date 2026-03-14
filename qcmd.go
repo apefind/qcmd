@@ -23,26 +23,26 @@ type CmdEntry struct {
 }
 
 func breadcrumb(path []*CmdEntry) string {
-	parts := make([]string, len(path))
-	for i, p := range path {
-		parts[i] = p.Label
+	p := make([]string, len(path))
+	for i, e := range path {
+		p[i] = e.Label
 	}
-	return strings.Join(parts, " › ")
+	return strings.Join(p, " › ")
 }
 
 func indentWidth(line string, tabSize int) int {
-	width := 0
+	w := 0
 	for _, r := range line {
 		switch r {
 		case ' ':
-			width++
+			w++
 		case '\t':
-			width += tabSize
+			w += tabSize
 		default:
-			return width
+			return w
 		}
 	}
-	return width
+	return w
 }
 
 func skip(ln string) bool {
@@ -78,6 +78,7 @@ func getCmdEntry(ln string) *CmdEntry {
 }
 
 func readQCmd(path string) (*CmdEntry, int, error) {
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, 0, err
@@ -85,11 +86,13 @@ func readQCmd(path string) (*CmdEntry, int, error) {
 	defer f.Close()
 
 	tabSize := 4
-	root := &CmdEntry{Label: "QCmd Menu"}
+	root := &CmdEntry{Label: "QCmd"}
 	stack := []*CmdEntry{root}
 
 	sc := bufio.NewScanner(f)
+
 	for sc.Scan() {
+
 		raw := sc.Text()
 		trim := strings.TrimSpace(raw)
 
@@ -110,6 +113,7 @@ func readQCmd(path string) (*CmdEntry, int, error) {
 		if level >= len(stack) {
 			level = len(stack) - 1
 		}
+
 		stack = stack[:level+1]
 
 		parent := stack[len(stack)-1]
@@ -123,10 +127,12 @@ func readQCmd(path string) (*CmdEntry, int, error) {
 	if err := sc.Err(); err != nil {
 		return nil, 0, err
 	}
+
 	return root, tabSize, nil
 }
 
 func getShellCmd(command string) *exec.Cmd {
+
 	var cmd *exec.Cmd
 
 	if runtime.GOOS == "windows" {
@@ -142,28 +148,51 @@ func getShellCmd(command string) *exec.Cmd {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+
 	return cmd
 }
 
 func runShellCmd(command string) (int, error) {
+
 	cmd := getShellCmd(command)
 
 	if err := cmd.Run(); err != nil {
+
 		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+
 			if status.Exited() {
 				return status.ExitStatus(), err
 			}
+
 			if status.Signaled() {
 				return -int(status.Signal()), err
 			}
 		}
+
 		return -1, err
 	}
 
 	return 0, nil
 }
 
+func flattenCommands(e *CmdEntry, list *[]*CmdEntry) {
+
+	for _, c := range e.Entries {
+
+		if c.Separator {
+			continue
+		}
+
+		if len(c.Entries) > 0 {
+			flattenCommands(c, list)
+		} else {
+			*list = append(*list, c)
+		}
+	}
+}
+
 func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
+
 	opts := make([]huh.Option[*CmdEntry], 0, len(entries))
 
 	for _, e := range entries {
@@ -176,9 +205,9 @@ func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
 		label := e.Label
 
 		if len(e.Entries) > 0 {
-			label = "› " + label
+			label = "▸ " + label
 		} else {
-			label = "● " + label
+			label = "◇ " + label
 		}
 
 		opts = append(opts, huh.NewOption(label, e))
@@ -187,26 +216,60 @@ func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
 	return opts
 }
 
-func runMenu(menu *CmdEntry, path []*CmdEntry) error {
-	for {
-		var selected *CmdEntry
+func runPalette(root *CmdEntry) error {
 
-		km := huh.NewDefaultKeyMap()
-		km.Quit.SetKeys("esc", "ctrl+c")
+	var cmds []*CmdEntry
+	flattenCommands(root, &cmds)
+
+	opts := make([]huh.Option[*CmdEntry], 0, len(cmds))
+
+	for _, c := range cmds {
+		opts = append(opts, huh.NewOption("◇ "+c.Label, c))
+	}
+
+	var selected *CmdEntry
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[*CmdEntry]().
+				Title("Command Palette").
+				Filtering(true).
+				Options(opts...).
+				Value(&selected),
+		),
+	)
+
+	err := form.Run()
+	if err != nil {
+		return err
+	}
+
+	_, err = runShellCmd(selected.Command)
+	return err
+}
+
+func runMenu(menu *CmdEntry, path []*CmdEntry) error {
+
+	for {
+
+		var selected *CmdEntry
 
 		form := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[*CmdEntry]().
 					Title(breadcrumb(path)).
+					Filtering(true).
 					Options(entryOptions(menu.Entries)...).
 					Value(&selected),
 			),
-		).WithTheme(huh.ThemeCatppuccin()).WithKeyMap(km)
+		).WithTheme(huh.ThemeCatppuccin())
 
 		err := form.Run()
+
 		if err == huh.ErrUserAborted {
 			return nil
 		}
+
 		if err != nil {
 			return err
 		}
@@ -223,6 +286,7 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 		}
 
 		code, err := runShellCmd(selected.Command)
+
 		if err != nil {
 			fmt.Printf("command failed (%d): %v\n", code, err)
 		}
@@ -234,7 +298,10 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 }
 
 func main() {
+
 	qcmdPath := flag.String("f", ".qcmd", "path to QCMD file")
+	palette := flag.Bool("p", false, "command palette")
+
 	flag.Parse()
 
 	if _, err := os.Stat(*qcmdPath); err != nil {
@@ -245,6 +312,13 @@ func main() {
 	menu, _, err := readQCmd(*qcmdPath)
 	if err != nil {
 		panic(err)
+	}
+
+	if *palette {
+		if err := runPalette(menu); err != nil {
+			panic(err)
+		}
+		return
 	}
 
 	if err := runMenu(menu, []*CmdEntry{menu}); err != nil {
