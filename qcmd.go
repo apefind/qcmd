@@ -24,8 +24,8 @@ type CmdEntry struct {
 }
 
 var (
-	// Commands: bright green + bold
-	cmdStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Bold(true)
+	// Commands: softer green + bold
+	cmdStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#32CD32")) //.Bold(true)
 	// Submenus: bold only
 	menuStyle = lipgloss.NewStyle().Bold(true)
 	// Separators: soft gray
