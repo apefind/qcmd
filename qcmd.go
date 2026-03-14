@@ -218,6 +218,12 @@ func entryOptions(entries []*CmdEntry) []huh.Option[*CmdEntry] {
 	return opts
 }
 
+func keymap() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+	km.Quit.SetKeys("esc", "ctrl+c")
+	return km
+}
+
 func runPalette(root *CmdEntry) error {
 
 	var cmds []*CmdEntry
@@ -239,7 +245,7 @@ func runPalette(root *CmdEntry) error {
 				Options(opts...).
 				Value(&selected),
 		),
-	).WithKeyMap(huh.NewDefaultKeyMap())
+	).WithKeyMap(keymap())
 
 	err := form.Run()
 	if err != nil {
@@ -265,7 +271,7 @@ func runMenu(menu *CmdEntry, path []*CmdEntry) error {
 					Value(&selected),
 			),
 		).
-			WithKeyMap(huh.NewDefaultKeyMap()).
+			WithKeyMap(keymap()).
 			WithTheme(huh.ThemeCatppuccin())
 
 		err := form.Run()
