@@ -1,43 +1,45 @@
-# QCmd
+QCmd
+====
 
-**QCmd** is a lightweight terminal menu written in Go that allows you to run
-shell commands from a simple text-defined menu.
+**QCmd** is a lightweight terminal menu written in Go that allows you to
+run shell commands from a simple text-defined menu.
 
 Commands are organized hierarchically using indentation in a single
-`.qcmd` configuration file.
+``.qcmd`` configuration file.
 
 QCmd is designed to be:
 
-* fast
-* minimal
-* portable
-* easy to customize
+- fast
+- minimal
+- portable
+- easy to customize
 
 It works on **Linux**, **macOS**, and **Windows**.
 
-## Quick Preview
+Quick Preview
+-------------
 
-.. image:: demo.gif
-:alt: QCmd terminal demo
-:align: center
-:width: 800px
+.. image:: demo.gif :alt: QCmd terminal demo :align: center :width:
+800px
 
 The demo shows navigating menus and executing commands directly from the
 terminal interface.
 
-## Features
+Features
+--------
 
-* Interactive terminal UI
-* Indentation-based menu structure
-* Nested submenus
-* Searchable command palette
-* Breadcrumb navigation
-* Visual separators
-* Optional return-to-menu behavior
-* Cross-platform shell execution
-* Single-file configuration
+- Interactive terminal UI
+- Indentation-based menu structure
+- Nested submenus
+- Searchable command palette
+- Breadcrumb navigation
+- Visual separators
+- Optional return-to-menu behavior
+- Cross-platform shell execution
+- Single-file configuration
 
-## Installation
+Installation
+------------
 
 Run directly with Go:
 
@@ -57,9 +59,10 @@ After installation:
 
 qcmd
 
-## Usage
+Usage
+-----
 
-By default, QCmd reads a file named `.qcmd` in the current directory.
+By default, QCmd reads a file named ``.qcmd`` in the current directory.
 
 .. code-block:: sh
 
@@ -77,15 +80,14 @@ Open the **command palette** (search all commands):
 
 qcmd -p
 
-## Configuration File
+Configuration File
+------------------
 
-QCmd reads commands from a `.qcmd` file.
+QCmd reads commands from a ``.qcmd`` file.
 
 The structure is defined using indentation.
 
 Rules
-
-```
 
 - Indentation defines menu hierarchy
 - Lines ending with ``:`` create submenus
@@ -99,13 +101,13 @@ Optional indentation directive:
 
 .. code-block:: text
 
-   #tab=4
+    #tab=4
 
 or
 
 .. code-block:: text
 
-   #indent=2
+    #indent=2
 
 Example Configuration
 ---------------------
@@ -114,27 +116,27 @@ Example ``.qcmd`` file:
 
 .. code-block:: text
 
-   #tab=4
+    #tab=4
 
-   Go Tasks:
-       Run: go run qcmd.go
-       Install: go install
-       Tidy modules: go mod tidy
+    Go Tasks:
+        Run: go run qcmd.go
+        Install: go install
+        Tidy modules: go mod tidy
 
-   Git:
-       Commit + Push: git commit -a && git push
-       Commit: git commit -a
-       ---
-       Git Subcommands:
-           Push: git push ␍
-           Pull: git pull ␍
-           Status: git status ␍
+    Git:
+        Commit + Push: git commit -a && git push
+        Commit: git commit -a
+        ---
+        Git Subcommands:
+            Push: git push ␍
+            Pull: git pull ␍
+            Status: git status ␍
 
-   ---
-   List files: ls -lart
-   System info: uname -a
-   Print current directory: pwd ␍
-   Edit config: $EDITOR .qcmd
+    ---
+    List files: ls -lart
+    System info: uname -a
+    Print current directory: pwd ␍
+    Edit config: $EDITOR .qcmd
 
 Menu Example
 ------------
@@ -143,18 +145,18 @@ Example terminal interface:
 
 .. code-block:: text
 
-   QCmd
-   ┃ > › Go Tasks
-   ┃   › Git
-   ┃   → List files
-   ┃   → System info
-   ┃   → Print current directory
-   ┃   → Edit config
+    QCmd
+    ┃ > › Go Tasks
+    ┃   › Git
+    ┃   → List files
+    ┃   → System info
+    ┃   → Print current directory
+    ┃   → Edit config
 
-   QCmd › Git
-   ┃ > → Commit + Push
-   ┃   → Commit
-   ┃   › Git Subcommands
+    QCmd › Git
+    ┃ > → Commit + Push
+    ┃   → Commit
+    ┃   › Git Subcommands
 
 Command Palette
 ---------------
@@ -165,7 +167,7 @@ Run:
 
 .. code-block:: sh
 
-   qcmd -p
+    qcmd -p
 
 This is useful when you want to run a command quickly without navigating
 through nested menus.
@@ -195,7 +197,7 @@ Linux / macOS:
 
 .. code-block:: text
 
-   sh -c "command"
+    sh -c "command"
 
 Windows:
 
@@ -209,13 +211,12 @@ Project Structure
 
 ::
 
-   qcmd.go
-   .qcmd
-   README.rst
-   demo.gif
+    qcmd.go
+    .qcmd
+    README.rst
+    demo.gif
 
 License
 -------
 
 MIT License
-```
