@@ -25,7 +25,7 @@ type CmdEntry struct {
 
 var (
 	// Commands: softer green + bold
-	cmdStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#32CD32")) //.Bold(true)
+	cmdStyle = lipgloss.NewStyle() //.Foreground(lipgloss.Color("#32CD32")) //.Bold(true)
 	// Submenus: bold only
 	menuStyle = lipgloss.NewStyle().Bold(true)
 	// Separators: soft gray
@@ -149,6 +149,7 @@ func getShellCmd(command string) *exec.Cmd {
 }
 
 func runShellCmd(command string) (int, error) {
+	fmt.Printf("\n%s\n\n", command)
 	cmd := getShellCmd(command)
 	if err := cmd.Run(); err != nil {
 		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
@@ -216,7 +217,7 @@ func runPalette(root *CmdEntry) error {
 			Filtering(true).
 			Options(opts...).
 			Value(&selected)),
-	).WithKeyMap(keymap())
+	).WithKeyMap(keymap()).WithTheme(huh.ThemeCatppuccin())
 
 	err := form.Run()
 	if err == huh.ErrUserAborted {
