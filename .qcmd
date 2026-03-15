@@ -1,5 +1,7 @@
 # .qcmd example file
 
+echo "This is qcmd ..." && sleep 1 ␍
+
 git commit -a && git push && git deploy
 go install qcmd.go
 
